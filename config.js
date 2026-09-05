@@ -70,7 +70,7 @@ const CONFIG = {
     socials: [
         { name: "GitHub", icon: "fa-brands fa-github", url: "https://github.com/kenpcphilets-rgb" },
         { name: "Facebook", icon: "fa-brands fa-facebook", url: "https://www.facebook.com/nhatam.029/" },
-        { name: "Telegram", icon: "fa-brands fa-telegram", url: "https://t.me/kenpcphilets" },
+        { name: "TikTok", icon: "fa-brands fa-tiktok", url: "https://www.tiktok.com/@nhatamxyz" },
         { name: "Steam", icon: "fa-brands fa-steam", url: "https://steamcommunity.com/profiles/76561199524577128/" }
     ],
 
