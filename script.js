@@ -1,7 +1,9 @@
 /**
  * ====================================================================
- *                 NHAT TAM BIO - SCRIPT CONTROLLER (zyo.lol style)
+ *                 PHẠM NHẬT TÂM - SCRIPT CONTROLLER
  * ====================================================================
+ * Music Sanctuary Controller: Lofi Vinyl Player, Soundwaves Engine,
+ * Parallax Banner Shimmer & Interactive Aesthetic FX.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -11,16 +13,61 @@ document.addEventListener('DOMContentLoaded', () => {
     initAudioController();
     initMouseEffects();
     initParticleCanvas();
-    initLanyardRealtime();
     initLocalClock();
 });
 
 /* ====================================================================
-   1. PROFILE UI INITIALIZATION FROM CONFIG
+   1. PROFILE UI & BANNER ENGINE INITIALIZATION
    ==================================================================== */
+let currentBannerIndex = 0;
+const bannerList = (CONFIG.profile && Array.isArray(CONFIG.profile.banners) && CONFIG.profile.banners.length > 0)
+    ? CONFIG.profile.banners
+    : [
+        { id: "chrome", name: "Liquid Chrome Violet", url: "profile_banner.jpg", tag: "CYBER WAVE" },
+        { id: "f8_anime", name: "F8 Anime Aesthetic", url: "f8_banner.png", tag: "PURPLE NOIR" },
+        { id: "f8_welcome", name: "F8 Graffiti Welcome", url: "f8_splash.png", tag: "STREET NEON" },
+        { id: "gta_prime", name: "GTA5F8 Prime Warzone", url: "gta_banner.png", tag: "WARZONE F8" }
+    ];
+
+function setBanner(index, triggerToast = false) {
+    if (index < 0) index = bannerList.length - 1;
+    if (index >= bannerList.length) index = 0;
+    currentBannerIndex = index;
+
+    const b = bannerList[currentBannerIndex];
+    const bannerImgLayer = document.getElementById('banner-img-layer');
+    const bannerEl = document.getElementById('card-banner');
+    const hudTag = document.getElementById('banner-hud-tag');
+
+    if (bannerImgLayer) {
+        bannerImgLayer.style.opacity = '0.35';
+        bannerImgLayer.style.filter = 'blur(4px)';
+        setTimeout(() => {
+            bannerImgLayer.style.backgroundImage = `url('${b.url}')`;
+            bannerImgLayer.style.opacity = '1';
+            bannerImgLayer.style.filter = 'blur(0px)';
+        }, 160);
+    } else if (bannerEl) {
+        bannerEl.style.backgroundImage = `url('${b.url}')`;
+    }
+
+    if (hudTag) {
+        hudTag.textContent = b.tag || b.name.toUpperCase();
+    }
+
+    try {
+        localStorage.setItem('nhatam_banner_idx', currentBannerIndex.toString());
+    } catch (e) {}
+
+    if (triggerToast) {
+        showToast(`Đã chuyển Banner: ${b.name}`, 'fa-solid fa-wand-magic-sparkles');
+        playBeepSound(640, 0.08);
+    }
+}
+
 function initProfileUI() {
-    // Set Browser Document Title
-    document.title = CONFIG.profile.name || "Nhat Tam";
+    // Set Document Title
+    document.title = `${CONFIG.profile.name || "Phạm Nhật Tâm"} • Music Sanctuary`;
 
     // Set Profile Text
     const nameEl = document.getElementById('user-display-name');
@@ -28,43 +75,96 @@ function initProfileUI() {
     const taglineEl = document.getElementById('user-tagline');
     const bioEl = document.getElementById('user-bio');
     const avatarEl = document.getElementById('profile-avatar');
-    const bannerEl = document.getElementById('card-banner');
 
     if (nameEl) nameEl.textContent = CONFIG.profile.name;
     if (handleEl) handleEl.textContent = `@${CONFIG.profile.username}`;
     if (taglineEl) taglineEl.textContent = CONFIG.profile.title;
-    if (bioEl) bioEl.textContent = CONFIG.profile.bio;
+    if (bioEl && CONFIG.profile.bio) {
+        bioEl.innerHTML = `Tôi là <strong class="name-highlight">${CONFIG.profile.name}</strong> — một tâm hồn say đắm những thanh âm Lofi êm đềm, tìm kiếm sự tự do và an yên giữa từng giai điệu và thế giới số. Đối với tôi, âm nhạc là ngôn ngữ chữa lành cảm xúc, còn công nghệ là nơi tôi thỏa sức định hình phong cách và sáng tạo thế giới của riêng mình.`;
+    }
     if (avatarEl && CONFIG.profile.avatar) avatarEl.src = CONFIG.profile.avatar;
-    if (bannerEl && CONFIG.profile.banner) bannerEl.style.backgroundImage = `url('${CONFIG.profile.banner}')`;
 
-    // Synchronize Cute Welcome Overlay
-    const enterAvatarEl = document.querySelector('.cute-avatar-img, .enter-avatar-img');
-    const enterNameEl = document.querySelector('.cute-name, .enter-name');
+    // Load Saved or Default Banner
+    let savedBannerIdx = 0;
+    try {
+        const stored = localStorage.getItem('nhatam_banner_idx');
+        if (stored !== null) {
+            const parsed = parseInt(stored, 10);
+            if (!isNaN(parsed) && parsed >= 0 && parsed < bannerList.length) {
+                savedBannerIdx = parsed;
+            }
+        }
+    } catch (e) {}
+    setBanner(savedBannerIdx, false);
+
+    // Switch Banner Button
+    const bannerSwitchBtn = document.getElementById('banner-switch-btn');
+    if (bannerSwitchBtn) {
+        bannerSwitchBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setBanner(currentBannerIndex + 1, true);
+        });
+    }
+
+    // Keyboard Shortcut 'B' for instant banner switch
+    window.addEventListener('keydown', (e) => {
+        if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+        if (e.key && (e.key.toLowerCase() === 'b')) {
+            setBanner(currentBannerIndex + 1, true);
+        }
+    });
+
+    // Synchronize Welcome Overlay
+    const enterAvatarEl = document.querySelector('.cute-avatar-img');
+    const enterNameEl = document.querySelector('.cute-name');
     if (enterAvatarEl && CONFIG.profile.avatar) enterAvatarEl.src = CONFIG.profile.avatar;
     if (enterNameEl && CONFIG.profile.name) enterNameEl.textContent = CONFIG.profile.name;
 
-    // Render Badges
+    // Avatar Modal Preview
+    const avatarWrapper = document.getElementById('avatar-wrapper');
+    const avatarModal = document.getElementById('avatar-modal');
+    const avatarModalImg = document.getElementById('avatar-modal-img');
+    const avatarModalName = document.querySelector('.avatar-modal-name');
+    if (avatarWrapper && avatarModal) {
+        avatarWrapper.addEventListener('click', () => {
+            if (avatarModalImg && CONFIG.profile.avatar) avatarModalImg.src = CONFIG.profile.avatar;
+            if (avatarModalName && CONFIG.profile.name) avatarModalName.textContent = CONFIG.profile.name;
+            avatarModal.classList.add('active');
+            playBeepSound(680, 0.08);
+        });
+        avatarModal.addEventListener('click', () => {
+            avatarModal.classList.remove('active');
+        });
+    }
+
+    // Render Badges with Color Highlights
     const badgesContainer = document.getElementById('badges-container');
     if (badgesContainer && CONFIG.profile.badges) {
         badgesContainer.innerHTML = '';
         CONFIG.profile.badges.forEach(badge => {
             const pill = document.createElement('div');
             pill.className = 'badge-pill';
+            if (badge.color) pill.style.setProperty('--badge-color', badge.color);
+            if (badge.bg) pill.style.setProperty('--badge-bg', badge.bg);
+            if (badge.border) pill.style.setProperty('--badge-border', badge.border);
             pill.innerHTML = `<i class="${badge.icon}"></i> <span>${badge.label}</span>`;
             badgesContainer.appendChild(pill);
         });
     }
 
-    // Render 2 Discord Servers (Ảnh Avatar & Banner thật 100% từ Discord)
+    // Render 2 Discord Servers
     const serversGrid = document.getElementById('servers-grid');
     if (serversGrid && CONFIG.servers) {
         serversGrid.innerHTML = '';
         CONFIG.servers.forEach((srv, idx) => {
             const card = document.createElement('div');
-            card.className = 'server-card';
+            card.className = `server-card ${srv.featured ? 'featured-server' : ''}`;
             card.id = `server-card-${idx}`;
             card.innerHTML = `
-                <img src="${srv.banner}" alt="${srv.name} Banner" class="server-banner-img" id="server-banner-${idx}">
+                <div class="server-banner-wrap">
+                    <img src="${srv.banner}" alt="${srv.name} Banner" class="server-banner-img" id="server-banner-${idx}">
+                    <div class="server-banner-grad"></div>
+                </div>
                 <div class="server-body">
                     <div class="server-icon-wrap">
                         <img src="${srv.icon}" alt="${srv.name} Icon" class="server-icon" id="server-icon-${idx}">
@@ -74,16 +174,16 @@ function initProfileUI() {
                             <span class="server-name" id="server-name-${idx}">${srv.name}</span>
                             <span class="server-tag">${srv.tag}</span>
                         </div>
-                        <div class="server-stats" id="server-stats-${idx}" style="display:flex;align-items:center;gap:7px;font-size:0.7rem;color:var(--text-muted);font-family:var(--font-mono);margin-top:1px;">
-                            <span style="display:inline-flex;align-items:center;gap:4px;"><i class="fa-solid fa-circle" style="color:var(--status-online);font-size:0.45rem;"></i> ${srv.online || 'Active Hub'}</span>
-                            <span>•</span>
-                            <span>${srv.members || 'Community'}</span>
+                        <div class="server-stats" id="server-stats-${idx}">
+                            <span class="stat-online"><i class="fa-solid fa-circle"></i> ${srv.online || 'Active Hub'}</span>
+                            <span class="stat-dot">•</span>
+                            <span class="stat-members">${srv.members || 'Community'}</span>
                         </div>
                         <span class="server-role">${srv.role}</span>
                         <p class="server-desc">${srv.description}</p>
                     </div>
                     <a href="${srv.inviteUrl}" target="_blank" rel="noopener noreferrer" class="server-join-btn">
-                        <i class="fa-brands fa-discord"></i> Join
+                        <i class="fa-brands fa-discord"></i> <span>Join</span>
                     </a>
                 </div>
             `;
@@ -103,7 +203,7 @@ function initProfileUI() {
                 };
             }
 
-            // Fetch latest live Discord server data (real banner, icon, member count)
+            // Fetch live Discord server data
             fetchDiscordInviteData(srv.inviteUrl, idx);
         });
     }
@@ -118,11 +218,12 @@ function initProfileUI() {
             a.href = soc.url;
             a.target = '_blank';
             a.rel = 'noopener noreferrer';
+            const brand = soc.brand || soc.name.toLowerCase();
+            a.setAttribute('data-brand', brand);
             a.innerHTML = `<i class="${soc.icon}"></i> <span>${soc.name}</span>`;
 
             if (soc.copy) {
                 a.addEventListener('click', (e) => {
-                    // If it has copy tag, copy and toast
                     navigator.clipboard.writeText(soc.copy);
                     showToast(`Đã sao chép ${soc.name}: ${soc.copy}`);
                 });
@@ -136,7 +237,7 @@ function initProfileUI() {
     const copyTagBtn = document.getElementById('copy-tag-btn');
     if (copyTagBtn) {
         copyTagBtn.addEventListener('click', () => {
-            const textToCopy = CONFIG.profile.username || CONFIG.discordId;
+            const textToCopy = CONFIG.profile.username || "darakz.xyz";
             navigator.clipboard.writeText(textToCopy).then(() => {
                 showToast(`Đã sao chép Discord: ${textToCopy}`);
                 playBeepSound(600, 0.08);
@@ -146,7 +247,7 @@ function initProfileUI() {
 }
 
 /* ====================================================================
-   1.1 DYNAMIC DISCORD GUILD INVITE FETCHER (Live Icon, Banner & Counts)
+   1.1 DYNAMIC DISCORD GUILD INVITE FETCHER
    ==================================================================== */
 async function fetchDiscordInviteData(inviteUrl, idx) {
     try {
@@ -163,19 +264,14 @@ async function fetchDiscordInviteData(inviteUrl, idx) {
         const statsEl = document.getElementById(`server-stats-${idx}`);
         const nameEl = document.getElementById(`server-name-${idx}`);
 
-        // Update real server name if available
-        if (nameEl && guild.name) {
-            nameEl.textContent = guild.name;
-        }
+        if (nameEl && guild.name) nameEl.textContent = guild.name;
 
-        // Update real server icon from Discord CDN
         if (iconEl && guild.icon) {
             const isGif = guild.icon.startsWith('a_');
             const ext = isGif ? 'gif' : 'png';
             iconEl.src = `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.${ext}?size=256`;
         }
 
-        // Update real server banner or splash from Discord CDN
         if (bannerEl) {
             if (guild.banner) {
                 const isGif = guild.banner.startsWith('a_');
@@ -186,23 +282,20 @@ async function fetchDiscordInviteData(inviteUrl, idx) {
             }
         }
 
-        // Update real member and online counts
         if (statsEl && data.approximate_member_count) {
             const onlineCount = data.approximate_presence_count || 0;
             const memberCount = data.approximate_member_count;
             statsEl.innerHTML = `
-                <span style="display:inline-flex;align-items:center;gap:4px;"><i class="fa-solid fa-circle" style="color:var(--status-online);font-size:0.45rem;"></i> ${onlineCount.toLocaleString()} Online</span>
-                <span>•</span>
-                <span>${memberCount.toLocaleString()} Members</span>
+                <span class="stat-online"><i class="fa-solid fa-circle"></i> ${onlineCount.toLocaleString()} Online</span>
+                <span class="stat-dot">•</span>
+                <span class="stat-members">${memberCount.toLocaleString()} Members</span>
             `;
         }
-    } catch (e) {
-        // Silently use values defined in config.js
-    }
+    } catch (e) {}
 }
 
 /* ====================================================================
-   2. TYPEWRITER EFFECT FOR QUOTES
+   2. TERMINAL TYPEWRITER EFFECT FOR QUOTES
    ==================================================================== */
 function initTypewriter() {
     const textEl = document.getElementById('typewriter-quote');
@@ -224,15 +317,15 @@ function initTypewriter() {
             textEl.textContent = currentQuote.substring(0, charIndex);
         }
 
-        let typeSpeed = isDeleting ? 30 : 65;
+        let typeSpeed = isDeleting ? 28 : 55;
 
         if (!isDeleting && charIndex === currentQuote.length) {
-            typeSpeed = 2600; // Pause at end of quote
+            typeSpeed = 3000;
             isDeleting = true;
         } else if (isDeleting && charIndex === 0) {
             isDeleting = false;
             quoteIndex = (quoteIndex + 1) % quotes.length;
-            typeSpeed = 500;
+            typeSpeed = 450;
         }
 
         setTimeout(typeLoop, typeSpeed);
@@ -242,17 +335,23 @@ function initTypewriter() {
 }
 
 /* ====================================================================
-   3. CLICK TO ENTER OVERLAY (zyo.lol Iconic Experience)
+   3. CLICK TO ENTER OVERLAY
    ==================================================================== */
 function initClickToEnter() {
     const overlay = document.getElementById('enter-overlay');
     if (!overlay) return;
 
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('entered') === '1' || urlParams.get('preview') === '1') {
+            overlay.classList.add('entered');
+        }
+    } catch (e) {}
+
     overlay.addEventListener('click', () => {
         overlay.classList.add('entered');
-        playBeepSound(440, 0.12);
+        playBeepSound(480, 0.12);
 
-        // Start Audio Playback if enabled
         if (CONFIG.music && CONFIG.music.autoplayOnEnter) {
             const audio = document.getElementById('bg-audio');
             if (audio) {
@@ -268,40 +367,74 @@ function initClickToEnter() {
 }
 
 /* ====================================================================
-   4. AUDIO PLAYER CONTROLLER (Playlist & Controls)
+   4. AUDIO CONTROLLER & PLAYLIST ENGINE
    ==================================================================== */
 let currentTrackIndex = 0;
 let playlist = [];
+let isAudioPlaying = false;
 
 function initAudioController() {
     const audio = document.getElementById('bg-audio');
     const playBtn = document.getElementById('audio-play-btn');
     const prevBtn = document.getElementById('audio-prev-btn');
     const nextBtn = document.getElementById('audio-next-btn');
-    const playIcon = document.getElementById('play-icon');
-    const disc = document.getElementById('audio-disc');
-    const eq = document.getElementById('equalizer');
     const volumeSlider = document.getElementById('volume-slider');
-    const trackTitle = document.getElementById('audio-track-title');
-    const artistName = document.getElementById('audio-artist-name');
 
     if (!audio || !CONFIG.music) return;
 
-    // Load playlist from config or fallback
     if (Array.isArray(CONFIG.music.playlist) && CONFIG.music.playlist.length > 0) {
         playlist = CONFIG.music.playlist;
     } else if (CONFIG.music.url) {
         playlist = [{
             title: CONFIG.music.title || 'Lofi Chill',
             artist: CONFIG.music.artist || 'Sanctuary Beats',
-            url: CONFIG.music.url
+            url: CONFIG.music.url,
+            duration: '2:45'
         }];
     }
 
     if (playlist.length === 0) return;
 
-    audio.volume = CONFIG.music.volume || 0.4;
+    audio.volume = CONFIG.music.volume || 0.45;
     if (volumeSlider) volumeSlider.value = audio.volume;
+
+    function renderPlaylistUI() {
+        const playlistContainer = document.getElementById('playlist-tracks');
+        const playlistCount = document.getElementById('playlist-count');
+        if (!playlistContainer) return;
+
+        if (playlistCount) playlistCount.textContent = `${playlist.length} Tracks`;
+        playlistContainer.innerHTML = '';
+
+        playlist.forEach((track, idx) => {
+            const item = document.createElement('div');
+            item.className = `track-item ${idx === currentTrackIndex ? 'active' : ''}`;
+            item.id = `playlist-item-${idx}`;
+            item.innerHTML = `
+                <div class="track-item-left">
+                    <div class="track-play-icon">
+                        <i class="fa-solid ${idx === currentTrackIndex && isAudioPlaying ? 'fa-pause' : 'fa-play'}"></i>
+                    </div>
+                    <div class="track-text-meta">
+                        <span class="track-item-title">${track.title}</span>
+                        <span class="track-item-artist">${track.artist}</span>
+                    </div>
+                </div>
+                <div class="track-item-right">
+                    <span class="track-tag-badge">${track.tag || 'LOFI'}</span>
+                    <span class="track-duration">${track.duration || '3:00'}</span>
+                </div>
+            `;
+            item.addEventListener('click', () => {
+                if (idx === currentTrackIndex) {
+                    togglePlayPause();
+                } else {
+                    loadTrack(idx, true);
+                }
+            });
+            playlistContainer.appendChild(item);
+        });
+    }
 
     function loadTrack(index, autoPlay = false) {
         if (index < 0) index = playlist.length - 1;
@@ -316,23 +449,37 @@ function initAudioController() {
         audio.src = track.url;
         audio.load();
 
-        if (trackTitle) {
-            trackTitle.textContent = track.title;
-            trackTitle.title = track.title;
-        }
-        if (artistName) {
-            const countTag = playlist.length > 1 ? `${currentTrackIndex + 1}/${playlist.length} • ` : '';
-            artistName.textContent = `${countTag}${track.artist}`;
-        }
+        const trackTitle = document.getElementById('audio-track-title');
+        const artistName = document.getElementById('audio-artist-name');
+        const nowTrackTitle = document.getElementById('now-track-title');
+        const nowTrackArtist = document.getElementById('now-track-artist');
+
+        if (trackTitle) trackTitle.textContent = track.title;
+        if (artistName) artistName.textContent = `${currentTrackIndex + 1}/${playlist.length} • ${track.artist}`;
+        if (nowTrackTitle) nowTrackTitle.textContent = track.title;
+        if (nowTrackArtist) nowTrackArtist.textContent = track.artist;
+
+        renderPlaylistUI();
 
         if (autoPlay) {
             audio.play().then(() => {
                 updateAudioWidgetState(true);
                 showToast(`Đang phát: ${track.title}`, 'fa-solid fa-music');
             }).catch(err => {
-                console.log('Audio play prevented:', err);
                 updateAudioWidgetState(false);
             });
+        }
+    }
+
+    function togglePlayPause() {
+        playBeepSound(520, 0.05);
+        if (audio.paused) {
+            audio.play().then(() => {
+                updateAudioWidgetState(true);
+            }).catch(e => console.log('Audio playback error:', e));
+        } else {
+            audio.pause();
+            updateAudioWidgetState(false);
         }
     }
 
@@ -353,81 +500,92 @@ function initAudioController() {
         loadTrack(prevIdx, true);
     }
 
-    // Set initial track metadata
     loadTrack(0, false);
 
-    // Play/Pause button
     if (playBtn) {
-        playBtn.addEventListener('click', () => {
-            playBeepSound(520, 0.05);
-            if (audio.paused) {
-                audio.play().then(() => {
-                    updateAudioWidgetState(true);
-                }).catch(e => console.log('Audio playback error:', e));
-            } else {
-                audio.pause();
-                updateAudioWidgetState(false);
-            }
-        });
+        playBtn.addEventListener('click', togglePlayPause);
     }
 
-    // Next track button
     if (nextBtn) {
-        nextBtn.addEventListener('click', () => {
-            playNextTrack();
-        });
+        nextBtn.addEventListener('click', playNextTrack);
     }
 
-    // Prev track button
     if (prevBtn) {
-        prevBtn.addEventListener('click', () => {
-            playPrevTrack();
-        });
+        prevBtn.addEventListener('click', playPrevTrack);
     }
 
-    // Volume slider
     if (volumeSlider) {
         volumeSlider.addEventListener('input', (e) => {
             audio.volume = parseFloat(e.target.value);
         });
     }
 
-    // Audio events
     audio.addEventListener('play', () => updateAudioWidgetState(true));
     audio.addEventListener('pause', () => updateAudioWidgetState(false));
-    audio.addEventListener('ended', () => {
-        // Auto-advance to next song in playlist
-        playNextTrack();
-    });
+    audio.addEventListener('ended', playNextTrack);
 
-    // Expose for external control or debugging
     window.bioPlayer = {
         next: playNextTrack,
         prev: playPrevTrack,
-        load: loadTrack
+        load: loadTrack,
+        toggle: togglePlayPause
     };
 }
 
 function updateAudioWidgetState(isPlaying) {
+    isAudioPlaying = isPlaying;
+
     const playIcon = document.getElementById('play-icon');
     const disc = document.getElementById('audio-disc');
     const eq = document.getElementById('equalizer');
+    const vinylOuter = document.querySelector('.vinyl-outer-ring');
+    const musicCardWave = document.getElementById('music-card-wave');
+    const bannerAudioWaves = document.getElementById('banner-audio-waves');
+    const headerMusicText = document.getElementById('header-music-text');
 
     if (isPlaying) {
         if (playIcon) playIcon.className = 'fa-solid fa-pause';
         if (disc) disc.classList.add('playing');
         if (eq) eq.classList.add('active');
+        if (vinylOuter) vinylOuter.classList.add('playing');
+        if (musicCardWave) musicCardWave.classList.add('active');
+        if (bannerAudioWaves) bannerAudioWaves.style.opacity = '1';
+
+        if (headerMusicText && playlist[currentTrackIndex]) {
+            headerMusicText.textContent = `NOW PLAYING: ${playlist[currentTrackIndex].title.toUpperCase()}`;
+        }
     } else {
         if (playIcon) playIcon.className = 'fa-solid fa-play';
         if (disc) disc.classList.remove('playing');
         if (eq) eq.classList.remove('active');
+        if (vinylOuter) vinylOuter.classList.remove('playing');
+        if (musicCardWave) musicCardWave.classList.remove('active');
+        if (bannerAudioWaves) bannerAudioWaves.style.opacity = '0.35';
+
+        if (headerMusicText && playlist[currentTrackIndex]) {
+            headerMusicText.textContent = `PAUSED: ${playlist[currentTrackIndex].title.toUpperCase()}`;
+        }
     }
+
+    // Update active play/pause icon in playlist
+    playlist.forEach((_, idx) => {
+        const item = document.getElementById(`playlist-item-${idx}`);
+        if (item) {
+            const icon = item.querySelector('.track-play-icon i');
+            if (idx === currentTrackIndex) {
+                item.classList.add('active');
+                if (icon) icon.className = `fa-solid ${isPlaying ? 'fa-pause' : 'fa-play'}`;
+            } else {
+                item.classList.remove('active');
+                if (icon) icon.className = 'fa-solid fa-play';
+            }
+        }
+    });
 }
 
 /* ====================================================================
-   5. MOUSE EFFECTS: SPOTLIGHT, 3D CARD TILT & CYBER RETICLE CURSOR
+   5. MOUSE EFFECTS: SPOTLIGHT, 3D CARD TILT, BANNER PARALLAX & CURSOR
    ==================================================================== */
-// Shared Stardust & Comet Trail arrays for particle canvas
 const stardustSparks = [];
 const cometRibbon = [];
 
@@ -436,6 +594,7 @@ function initMouseEffects() {
     const cyberCursor = document.getElementById('cyber-cursor');
     const tiltContainer = document.getElementById('tilt-container');
     const bioCard = document.getElementById('bio-card');
+    const bannerImgLayer = document.getElementById('banner-img-layer');
 
     let mouseX = window.innerWidth / 2;
     let mouseY = window.innerHeight / 2;
@@ -452,118 +611,125 @@ function initMouseEffects() {
     let currentTiltX = 0;
     let currentTiltY = 0;
 
-    // Track Mouse Move
+    // Cache card dimensions to avoid layout thrashing on mousemove
+    let cardRect = bioCard ? bioCard.getBoundingClientRect() : null;
+    window.addEventListener('resize', () => {
+        if (bioCard) cardRect = bioCard.getBoundingClientRect();
+    }, { passive: true });
+
     window.addEventListener('mousemove', (e) => {
         mouseX = e.clientX;
         mouseY = e.clientY;
 
         const dx = mouseX - prevMouseX;
         const dy = mouseY - prevMouseY;
-        const speed = Math.sqrt(dx * dx + dy * dy);
+        const distSq = dx * dx + dy * dy;
 
-        // Calculate dynamic tilt angle for cyber reticle
-        if (speed > 1.5) {
+        if (distSq > 4) {
             targetAngle = Math.atan2(dy, dx) * (180 / Math.PI);
-        }
 
-        // Add to Comet Ribbon Trail
-        cometRibbon.push({
-            x: mouseX,
-            y: mouseY,
-            age: 0,
-            life: 24,
-            width: Math.min(speed * 0.45 + 2.5, 9)
-        });
+            // Only add ribbon if mouse moved sufficiently
+            if (cometRibbon.length < 18) {
+                cometRibbon.push({
+                    x: mouseX,
+                    y: mouseY,
+                    age: 0,
+                    life: 20,
+                    width: Math.min(Math.sqrt(distSq) * 0.35 + 2, 7)
+                });
+            }
 
-        // Emit glowing stardust sparks
-        if (speed > 3) {
-            const count = Math.min(Math.floor(speed / 4), 3);
-            for (let i = 0; i < count; i++) {
+            if (distSq > 36 && stardustSparks.length < 15) {
                 stardustSparks.push({
                     x: mouseX + (Math.random() - 0.5) * 6,
                     y: mouseY + (Math.random() - 0.5) * 6,
-                    vx: (Math.random() - 0.5) * 2 - dx * 0.1,
-                    vy: (Math.random() - 0.5) * 2 - dy * 0.1,
-                    size: Math.random() * 2.5 + 1,
-                    alpha: 0.85,
-                    decay: Math.random() * 0.03 + 0.025
+                    vx: (Math.random() - 0.5) * 1.5 - dx * 0.08,
+                    vy: (Math.random() - 0.5) * 1.5 - dy * 0.08,
+                    size: Math.random() * 2 + 1,
+                    alpha: 0.8,
+                    decay: 0.035
                 });
             }
+
+            prevMouseX = mouseX;
+            prevMouseY = mouseY;
         }
 
-        prevMouseX = mouseX;
-        prevMouseY = mouseY;
-
-        // Update spotlight position
-        if (CONFIG.effects.enableSpotlight && spotlight) {
-            spotlight.style.setProperty('--mouse-x', `${mouseX}px`);
-            spotlight.style.setProperty('--mouse-y', `${mouseY}px`);
-        }
-
-        // Calculate 3D Card Tilt relative to window center
         if (CONFIG.effects.enableTilt && tiltContainer) {
             const centerX = window.innerWidth / 2;
             const centerY = window.innerHeight / 2;
-            const maxTilt = 8; // degrees
+            const maxTilt = 6;
 
             const deltaX = (mouseX - centerX) / centerX;
             const deltaY = (mouseY - centerY) / centerY;
 
             targetTiltX = -deltaY * maxTilt;
             targetTiltY = deltaX * maxTilt;
-
-            // Card Glare coordinates
-            if (bioCard) {
-                const rect = bioCard.getBoundingClientRect();
-                const glareX = mouseX - rect.left;
-                const glareY = mouseY - rect.top;
-                bioCard.style.setProperty('--glare-x', `${glareX}px`);
-                bioCard.style.setProperty('--glare-y', `${glareY}px`);
-            }
         }
-    });
+    }, { passive: true });
 
-    // Reset tilt and angle when cursor leaves window
     window.addEventListener('mouseleave', () => {
         targetTiltX = 0;
         targetTiltY = 0;
         targetAngle = 0;
     });
 
-    // Cursor hover effects on interactive elements
-    const interactiveElements = 'a, button, input, .badge-pill, .server-card, .activity-card, .enter-overlay';
+    const interactiveElements = 'a, button, input, .badge-pill, .server-card, .enter-overlay, .avatar-wrapper, .banner-switch-btn, .track-item';
     document.addEventListener('mouseover', (e) => {
         if (e.target.closest(interactiveElements)) {
             document.body.classList.add('cursor-hover');
         }
-    });
+    }, { passive: true });
     document.addEventListener('mouseout', (e) => {
         if (e.target.closest(interactiveElements)) {
             document.body.classList.remove('cursor-hover');
         }
-    });
+    }, { passive: true });
 
-    // Smooth physics loop (Lerp)
+    let lastSpotX = 0;
+    let lastSpotY = 0;
+
     function renderPhysics() {
-        // Elastic responsive Cyber Reticle Cursor
         cursorX += (mouseX - cursorX) * 0.28;
         cursorY += (mouseY - cursorY) * 0.28;
 
-        // Smooth angle rotation
         let angleDiff = targetAngle - currentAngle;
         while (angleDiff > 180) angleDiff -= 360;
         while (angleDiff < -180) angleDiff += 360;
         currentAngle += angleDiff * 0.12;
 
         if (cyberCursor) {
-            cyberCursor.style.transform = `translate(${cursorX}px, ${cursorY}px) translate(-50%, -50%) rotate(${currentAngle.toFixed(1)}deg)`;
+            cyberCursor.style.transform = `translate3d(${cursorX.toFixed(1)}px, ${cursorY.toFixed(1)}px, 0) translate(-50%, -50%) rotate(${currentAngle.toFixed(1)}deg)`;
         }
 
-        // Smooth Card Tilt
+        // Spotlight & Glare updated inside 60fps rAF
+        if (CONFIG.effects.enableSpotlight && spotlight) {
+            if (Math.abs(cursorX - lastSpotX) > 1 || Math.abs(cursorY - lastSpotY) > 1) {
+                spotlight.style.setProperty('--mouse-x', `${cursorX.toFixed(1)}px`);
+                spotlight.style.setProperty('--mouse-y', `${cursorY.toFixed(1)}px`);
+                lastSpotX = cursorX;
+                lastSpotY = cursorY;
+            }
+        }
+
         if (CONFIG.effects.enableTilt && tiltContainer) {
             currentTiltX += (targetTiltX - currentTiltX) * 0.08;
             currentTiltY += (targetTiltY - currentTiltY) * 0.08;
             tiltContainer.style.transform = `rotateX(${currentTiltX.toFixed(2)}deg) rotateY(${currentTiltY.toFixed(2)}deg)`;
+
+            if (bioCard && cardRect) {
+                const glareX = cursorX - cardRect.left;
+                const glareY = cursorY - cardRect.top;
+                bioCard.style.setProperty('--glare-x', `${glareX.toFixed(1)}px`);
+                bioCard.style.setProperty('--glare-y', `${glareY.toFixed(1)}px`);
+            }
+
+            // Banner Parallax Shift
+            if (bannerImgLayer) {
+                const shiftX = -currentTiltY * 1.1;
+                const shiftY = currentTiltX * 1.1;
+                bannerImgLayer.style.transform = `scale(1.04) translate3d(${shiftX.toFixed(1)}px, ${shiftY.toFixed(1)}px, 0)`;
+            }
         }
 
         requestAnimationFrame(renderPhysics);
@@ -579,47 +745,44 @@ function initParticleCanvas() {
     if (!canvas || !CONFIG.effects.enableParticles) return;
 
     const ctx = canvas.getContext('2d');
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
+    let width = window.innerWidth;
+    let height = window.innerHeight;
 
-    window.addEventListener('resize', () => {
+    function resize() {
         width = canvas.width = window.innerWidth;
         height = canvas.height = window.innerHeight;
-    });
+    }
+    window.addEventListener('resize', resize);
+    resize();
 
-    // Ambient floating particles
     const particles = [];
-    const particleCount = Math.min(Math.floor((width * height) / 18000), 65);
+    const count = Math.min(Math.floor((width * height) / 26000), 36);
 
-    for (let i = 0; i < particleCount; i++) {
+    for (let i = 0; i < count; i++) {
         particles.push({
             x: Math.random() * width,
             y: Math.random() * height,
-            radius: Math.random() * 1.5 + 0.5,
-            speedX: (Math.random() - 0.5) * 0.35,
-            speedY: (Math.random() - 0.5) * 0.35,
-            alpha: Math.random() * 0.45 + 0.15
+            radius: Math.random() * 1.3 + 0.5,
+            speedX: (Math.random() - 0.5) * 0.3,
+            speedY: (Math.random() - 0.5) * 0.3,
+            alpha: Math.random() * 0.4 + 0.15
         });
     }
 
-    // 4. Shooting Stars Generator (Lâu lâu có sao băng xẹt qua bầu trời)
     const shootingStars = [];
-    let nextShootingStarTime = Date.now() + 1200; // Ngay sau khi vào 1.2s sẽ có 1 sao băng đầu tiên
+    let nextShootingStarTime = Date.now() + 1500;
 
     function spawnShootingStar() {
         if (CONFIG.effects.enableShootingStars === false) return;
         
-        // Góc rơi tự nhiên chếch chéo từ 32° đến 52°
         const angleDeg = Math.random() * 20 + 32;
         const angle = (angleDeg * Math.PI) / 180;
-        const speed = Math.random() * 12 + 18; // Tốc độ xẹt nhanh, mượt mà
+        const speed = Math.random() * 12 + 18;
 
-        // Xuất phát từ cạnh trên hoặc mép trái phía trên
         const spawnFromTop = Math.random() > 0.35;
         const startX = spawnFromTop ? Math.random() * (width * 0.9) : -60;
         const startY = spawnFromTop ? -60 : Math.random() * (height * 0.45);
 
-        // Chiều dài vệt đuôi sao băng phát sáng
         const trailLength = Math.random() * 160 + 220;
 
         shootingStars.push({
@@ -628,18 +791,16 @@ function initParticleCanvas() {
             vx: Math.cos(angle) * speed,
             vy: Math.sin(angle) * speed,
             length: trailLength,
-            width: Math.random() * 1.5 + 2.2,
+            width: Math.random() * 1.5 + 2.0,
             alpha: 1.0,
             decay: Math.random() * 0.012 + 0.012,
             glowHue: Math.random() > 0.4 ? 'rgba(168, 85, 247, 0.85)' : 'rgba(255, 255, 255, 0.95)',
             sparkTimer: 0
         });
 
-        // Hẹn giờ sao băng tiếp theo xuất hiện ngẫu nhiên sau 4.5s đến 9.5s
         nextShootingStarTime = Date.now() + (Math.random() * 5000 + 4500);
     }
 
-    // Nhấn phím 'S' để gọi sao băng tức thì nếu muốn thử
     window.addEventListener('keydown', (e) => {
         if (e.key && e.key.toLowerCase() === 's') {
             spawnShootingStar();
@@ -649,7 +810,8 @@ function initParticleCanvas() {
     function animateParticles() {
         ctx.clearRect(0, 0, width, height);
 
-        // 1. Draw Ambient Floating Particles
+        // 1. Ambient Floating Particles (Batched 60fps)
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
         for (let i = 0; i < particles.length; i++) {
             const p = particles[i];
             p.x += p.speedX;
@@ -662,30 +824,33 @@ function initParticleCanvas() {
 
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha})`;
             ctx.fill();
+        }
 
-            // Connect nearby particles
+        // Batched Particle Network Connections (Zero Math.sqrt, single stroke call)
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+        ctx.lineWidth = 0.65;
+        const maxDistSq = 85 * 85;
+
+        for (let i = 0; i < particles.length; i++) {
+            const p = particles[i];
             for (let j = i + 1; j < particles.length; j++) {
                 const p2 = particles[j];
                 const dx = p.x - p2.x;
                 const dy = p.y - p2.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
+                const distSq = dx * dx + dy * dy;
 
-                if (dist < 105) {
-                    ctx.beginPath();
+                if (distSq < maxDistSq) {
                     ctx.moveTo(p.x, p.y);
                     ctx.lineTo(p2.x, p2.y);
-                    ctx.strokeStyle = `rgba(255, 255, 255, ${0.07 * (1 - dist / 105)})`;
-                    ctx.lineWidth = 0.75;
-                    ctx.stroke();
                 }
             }
         }
+        ctx.stroke();
 
-        // 2. Draw Fluid Glowing Comet Ribbon Trail (theo chuột)
+        // 2. Fluid Glowing Comet Ribbon Trail (No expensive shadowBlur)
         if (cometRibbon.length > 2) {
-            ctx.save();
             for (let i = cometRibbon.length - 1; i > 0; i--) {
                 const pt = cometRibbon[i];
                 const prevPt = cometRibbon[i - 1];
@@ -697,24 +862,21 @@ function initParticleCanvas() {
                     continue;
                 }
 
-                const alpha = (1 - progress) * 0.4;
+                const alpha = (1 - progress) * 0.45;
                 const lineWidth = pt.width * (1 - progress * 0.7);
 
                 ctx.beginPath();
                 ctx.moveTo(prevPt.x, prevPt.y);
                 ctx.lineTo(pt.x, pt.y);
-                ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.strokeStyle = `rgba(192, 132, 252, ${alpha})`;
                 ctx.lineWidth = lineWidth;
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
-                ctx.shadowColor = '#ffffff';
-                ctx.shadowBlur = 8 * (1 - progress);
                 ctx.stroke();
             }
-            ctx.restore();
         }
 
-        // 3. Draw Sparkling Stardust Particles
+        // 3. Sparkling Stardust Particles (Lightweight)
         for (let i = stardustSparks.length - 1; i >= 0; i--) {
             const s = stardustSparks[i];
             s.x += s.vx;
@@ -728,17 +890,13 @@ function initParticleCanvas() {
                 continue;
             }
 
-            ctx.save();
             ctx.beginPath();
             ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
             ctx.fillStyle = `rgba(255, 255, 255, ${s.alpha})`;
-            ctx.shadowColor = '#ffffff';
-            ctx.shadowBlur = 6;
             ctx.fill();
-            ctx.restore();
         }
 
-        // 4. Draw & Update Shooting Stars (Sao Băng Đằng Sau)
+        // 4. Shooting Stars
         if (CONFIG.effects.enableShootingStars !== false) {
             if (Date.now() >= nextShootingStarTime) {
                 spawnShootingStar();
@@ -750,13 +908,11 @@ function initParticleCanvas() {
                 star.y += star.vy;
                 star.alpha -= star.decay;
 
-                // Loại bỏ sao băng khi đã mờ hoặc bay ra khỏi khung nhìn
                 if (star.alpha <= 0 || star.x > width + 450 || star.y > height + 450) {
                     shootingStars.splice(i, 1);
                     continue;
                 }
 
-                // Phát sinh bụi sao lấp lánh dọc theo đường bay
                 star.sparkTimer++;
                 if (star.sparkTimer % 2 === 0) {
                     stardustSparks.push({
@@ -770,14 +926,11 @@ function initParticleCanvas() {
                     });
                 }
 
-                // Tọa độ đuôi sao băng
                 const angle = Math.atan2(star.vy, star.vx);
                 const tailX = star.x - Math.cos(angle) * star.length;
                 const tailY = star.y - Math.sin(angle) * star.length;
 
                 ctx.save();
-
-                // Dải gradient phát quang từ đuôi mờ dần về đầu sáng rực
                 const tailGrad = ctx.createLinearGradient(tailX, tailY, star.x, star.y);
                 tailGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
                 tailGrad.addColorStop(0.5, `rgba(255, 255, 255, ${star.alpha * 0.25})`);
@@ -790,18 +943,12 @@ function initParticleCanvas() {
                 ctx.strokeStyle = tailGrad;
                 ctx.lineWidth = star.width;
                 ctx.lineCap = 'round';
-                ctx.shadowColor = star.glowHue;
-                ctx.shadowBlur = 16;
                 ctx.stroke();
 
-                // Tâm đầu sao băng rực sáng lấp lánh
                 ctx.beginPath();
-                ctx.arc(star.x, star.y, star.width * 1.3, 0, Math.PI * 2);
+                ctx.arc(star.x, star.y, star.width * 1.4, 0, Math.PI * 2);
                 ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
-                ctx.shadowColor = '#ffffff';
-                ctx.shadowBlur = 22;
                 ctx.fill();
-
                 ctx.restore();
             }
         }
@@ -812,263 +959,7 @@ function initParticleCanvas() {
 }
 
 /* ====================================================================
-   7. DISCORD REALTIME PRESENCE (Lanyard WebSocket & REST)
-   ==================================================================== */
-let spotifyProgressInterval = null;
-
-function initLanyardRealtime() {
-    if (!CONFIG.discordId || !/^\d{17,20}$/.test(CONFIG.discordId)) {
-        const statusDot = document.querySelector('.status-dot');
-        const headerStatusText = document.getElementById('header-status-text');
-        const customStatusEmoji = document.getElementById('custom-status-emoji');
-        const customStatusText = document.getElementById('custom-status-text');
-
-        if (statusDot) statusDot.className = 'status-dot idle';
-        if (headerStatusText) headerStatusText.textContent = 'DISCORD • STANDBY';
-        if (customStatusEmoji) customStatusEmoji.innerHTML = '⚙️';
-        if (customStatusText) customStatusText.innerHTML = 'Cần ID Discord dạng số (18-19 số) & tham gia <a href="https://discord.gg/lanyard" target="_blank" style="color:#ffffff;text-decoration:underline;font-weight:700;">discord.gg/lanyard</a>';
-        return;
-    }
-
-    connectLanyardWebSocket();
-}
-
-function connectLanyardWebSocket() {
-    const ws = new WebSocket('wss://api.lanyard.rest/socket');
-    let heartbeatInterval = null;
-
-    ws.onopen = () => {
-        // Subscribe to Discord User ID
-        ws.send(JSON.stringify({
-            op: 2,
-            d: {
-                subscribe_to_id: CONFIG.discordId
-            }
-        }));
-    };
-
-    ws.onmessage = (event) => {
-        try {
-            const data = JSON.parse(event.data);
-            const { op, t, d } = data;
-
-            // Opcode 1: Hello from Lanyard -> start heartbeat
-            if (op === 1) {
-                const interval = d.heartbeat_interval;
-                heartbeatInterval = setInterval(() => {
-                    ws.send(JSON.stringify({ op: 3 }));
-                }, interval);
-            }
-
-            // Presence update event
-            if (t === 'INIT_STATE' || t === 'PRESENCE_UPDATE') {
-                updateDiscordPresenceUI(d);
-            }
-        } catch (e) {
-            console.error('Lanyard WS parse error:', e);
-        }
-    };
-
-    ws.onerror = () => {
-        fetchLanyardREST();
-    };
-
-    ws.onclose = () => {
-        if (heartbeatInterval) clearInterval(heartbeatInterval);
-        // Fallback to REST polling if WebSocket disconnects
-        setTimeout(fetchLanyardREST, 5000);
-    };
-}
-
-async function fetchLanyardREST() {
-    try {
-        const res = await fetch(`https://api.lanyard.rest/v1/users/${CONFIG.discordId}`);
-        if (res.status === 404) {
-            setMockDiscordState(true);
-            setTimeout(fetchLanyardREST, 4000);
-            return;
-        }
-        const json = await res.json();
-        if (json && json.success && json.data) {
-            updateDiscordPresenceUI(json.data);
-        } else {
-            setMockDiscordState(true);
-            setTimeout(fetchLanyardREST, 4000);
-        }
-    } catch (e) {
-        setMockDiscordState(false);
-        setTimeout(fetchLanyardREST, 5000);
-    }
-}
-
-function updateDiscordPresenceUI(data) {
-    if (!data) return;
-
-    const { discord_user, discord_status, activities, listening_to_spotify, spotify } = data;
-
-    // 1. Update Avatar (preserve custom avatar if set)
-    const avatarEl = document.getElementById('profile-avatar');
-    if (avatarEl) {
-        if (CONFIG.profile.avatar) {
-            avatarEl.src = CONFIG.profile.avatar;
-        } else if (discord_user && discord_user.avatar) {
-            const isGif = discord_user.avatar.startsWith('a_');
-            const ext = isGif ? 'gif' : 'png';
-            avatarEl.src = `https://cdn.discordapp.com/avatars/${discord_user.id}/${discord_user.avatar}.${ext}?size=256`;
-        }
-    }
-
-    // 2. Update Status Dot & Top Banner Status
-    const statusDot = document.querySelector('.status-dot');
-    const headerStatusText = document.getElementById('header-status-text');
-
-    if (statusDot) {
-        statusDot.className = `status-dot ${discord_status}`;
-    }
-
-    if (headerStatusText) {
-        headerStatusText.textContent = `DISCORD • ${discord_status.toUpperCase()}`;
-    }
-
-    // 3. Custom Status (activity type 4)
-    const customStatus = activities ? activities.find(a => a.type === 4) : null;
-    const customStatusEmoji = document.getElementById('custom-status-emoji');
-    const customStatusText = document.getElementById('custom-status-text');
-
-    if (customStatus) {
-        let emoji = '💬';
-        if (customStatus.emoji) {
-            if (customStatus.emoji.id) {
-                emoji = `<img src="https://cdn.discordapp.com/emojis/${customStatus.emoji.id}.png" style="width:20px;height:20px;vertical-align:middle;">`;
-            } else if (customStatus.emoji.name) {
-                emoji = customStatus.emoji.name;
-            }
-        }
-        if (customStatusEmoji) customStatusEmoji.innerHTML = emoji;
-        if (customStatusText) customStatusText.textContent = customStatus.state || 'Online on Discord';
-    } else {
-        if (customStatusEmoji) customStatusEmoji.textContent = '⚡';
-        if (customStatusText) customStatusText.textContent = `Status: ${discord_status.toUpperCase()} • Available`;
-    }
-
-    // 4. Spotify Live Activity
-    const spotifyCard = document.getElementById('spotify-card');
-    const spotifyArt = document.getElementById('spotify-album-art');
-    const spotifyTrack = document.getElementById('spotify-track');
-    const spotifyArtist = document.getElementById('spotify-artist');
-    const spotifyTimeCurrent = document.getElementById('spotify-time-current');
-    const spotifyTimeTotal = document.getElementById('spotify-time-total');
-    const spotifyProgressFill = document.getElementById('spotify-progress-fill');
-
-    if (spotifyProgressInterval) clearInterval(spotifyProgressInterval);
-
-    if (listening_to_spotify && spotify) {
-        if (spotifyCard) spotifyCard.style.display = 'flex';
-        if (spotifyArt) spotifyArt.src = spotify.album_art_url;
-        if (spotifyTrack) spotifyTrack.textContent = spotify.song;
-        if (spotifyArtist) spotifyArtist.textContent = `by ${spotify.artist}`;
-
-        const duration = spotify.timestamps.end - spotify.timestamps.start;
-        if (spotifyTimeTotal) spotifyTimeTotal.textContent = formatMs(duration);
-
-        function updateProgress() {
-            const elapsed = Date.now() - spotify.timestamps.start;
-            const clamped = Math.max(0, Math.min(elapsed, duration));
-            const pct = (clamped / duration) * 100;
-
-            if (spotifyTimeCurrent) spotifyTimeCurrent.textContent = formatMs(clamped);
-            if (spotifyProgressFill) spotifyProgressFill.style.width = `${pct}%`;
-
-            if (elapsed >= duration) {
-                clearInterval(spotifyProgressInterval);
-            }
-        }
-
-        updateProgress();
-        spotifyProgressInterval = setInterval(updateProgress, 1000);
-    } else {
-        if (spotifyCard) spotifyCard.style.display = 'none';
-    }
-
-    // 5. Game / Other Activity (type 0, 1, 2, 3, 5)
-    const gameActivity = activities ? activities.find(a => a.type !== 4) : null;
-    const gameCard = document.getElementById('game-card');
-    const gameArt = document.getElementById('game-art');
-    const gameName = document.getElementById('game-name');
-    const gameState = document.getElementById('game-state');
-    const gameDetails = document.getElementById('game-details-text');
-    const gameBadge = document.getElementById('game-badge');
-
-    if (gameActivity) {
-        if (gameCard) gameCard.style.display = 'flex';
-        if (gameName) gameName.textContent = gameActivity.name;
-        if (gameState) gameState.textContent = gameActivity.state || 'Active now';
-        if (gameDetails) gameDetails.textContent = gameActivity.details || '';
-
-        // Resolve Image
-        if (gameArt) {
-            if (gameActivity.assets && gameActivity.assets.large_image) {
-                let imgUrl = gameActivity.assets.large_image;
-                if (imgUrl.startsWith('mp:external/')) {
-                    imgUrl = 'https://media.discordapp.net/' + imgUrl.replace('mp:', '');
-                } else if (gameActivity.application_id) {
-                    imgUrl = `https://cdn.discordapp.com/app-assets/${gameActivity.application_id}/${imgUrl}.png`;
-                }
-                gameArt.src = imgUrl;
-                gameArt.style.display = 'block';
-            } else {
-                gameArt.src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=200&auto=format&fit=crop';
-            }
-        }
-
-        if (gameBadge) {
-            let label = 'PLAYING GAME';
-            let icon = 'fa-gamepad';
-            if (gameActivity.name.toLowerCase().includes('visual studio code') || gameActivity.name.toLowerCase().includes('code')) {
-                label = 'DEVELOPING';
-                icon = 'fa-code';
-            } else if (gameActivity.type === 2) {
-                label = 'LISTENING';
-                icon = 'fa-headphones';
-            } else if (gameActivity.type === 3) {
-                label = 'STREAMING / WATCHING';
-                icon = 'fa-video';
-            }
-            gameBadge.innerHTML = `<i class="fa-solid ${icon}"></i> ${label}`;
-        }
-    } else {
-        if (gameCard) gameCard.style.display = 'none';
-    }
-}
-
-function setMockDiscordState(is404 = false) {
-    const statusDot = document.querySelector('.status-dot');
-    const headerStatusText = document.getElementById('header-status-text');
-    const customStatusEmoji = document.getElementById('custom-status-emoji');
-    const customStatusText = document.getElementById('custom-status-text');
-
-    if (statusDot) statusDot.className = 'status-dot offline';
-    if (headerStatusText) headerStatusText.textContent = 'DISCORD • STANDBY';
-
-    if (customStatusEmoji) customStatusEmoji.innerHTML = '⚡';
-    if (customStatusText) {
-        if (is404) {
-            customStatusText.innerHTML = `Chưa kích hoạt Lanyard • <a href="https://discord.gg/lanyard" target="_blank" rel="noopener noreferrer" style="color:#ffffff;text-decoration:underline;font-weight:700;">Tham gia server discord.gg/lanyard để kích hoạt</a>`;
-        } else {
-            customStatusText.textContent = 'Đang kết nối Discord Lanyard...';
-        }
-    }
-}
-
-function formatMs(ms) {
-    const totalSec = Math.floor(ms / 1000);
-    const m = Math.floor(totalSec / 60);
-    const s = totalSec % 60;
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-}
-
-/* ====================================================================
-   8. REALTIME CLOCK IN FOOTER
+   7. REALTIME CLOCK IN FOOTER
    ==================================================================== */
 function initLocalClock() {
     const clockEl = document.getElementById('local-time');
@@ -1090,7 +981,7 @@ function initLocalClock() {
 }
 
 /* ====================================================================
-   9. TOAST NOTIFICATIONS & AUDIO EFFECTS
+   8. TOAST NOTIFICATIONS & AUDIO EFFECTS
    ==================================================================== */
 function showToast(message, icon = 'fa-solid fa-circle-check') {
     const container = document.getElementById('toast-container');
@@ -1124,7 +1015,5 @@ function playBeepSound(freq = 520, duration = 0.08) {
         gain.connect(ctx.destination);
         osc.start();
         osc.stop(ctx.currentTime + duration);
-    } catch (e) {
-        // Silent catch for audio context restrictions
-    }
+    } catch (e) {}
 }
